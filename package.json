@@ -1,0 +1,29 @@
+{
+  "name": "angular-rate-limiter",
+  "version": "0.0.1",
+  "description": "Angular HTTP request rate limiter",
+  "main": "angular-rate-limiter.js",
+  "scripts": {
+    "pretest": "./node_modules/jshint/bin/jshint angular-rate-limiter.js",
+    "test": "./node_modules/karma/bin/karma start karma.conf"
+  },
+  "keywords": [
+    "angular",
+    "rate-limit"
+  ],
+  "author": "kari.heikkinen@sc5.io",
+  "license": "MIT",
+  "devDependencies": {
+    "angular": "^1.5.7",
+    "angular-mocks": "^1.5.7",
+    "jasmine-core": "^2.4.1",
+    "jshint": "^2.9.2",
+    "karma": "^1.1.0",
+    "karma-chrome-launcher": "^1.0.1",
+    "karma-jasmine": "^1.0.2",
+    "karma-phantomjs-launcher": "^1.0.1",
+    "karma-sinon": "^1.0.5",
+    "lodash": "^4.13.1",
+    "sinon": "^1.17.4"
+  }
+}
