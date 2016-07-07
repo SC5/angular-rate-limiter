@@ -14,14 +14,10 @@
                         match: 'api.mydomain.com', // Use limiter only request to `api.mydomain.com`
                         bucketSize: 10,        // Maximum number of tokens bucket can hold
                         tokensPerInterval: 1,  // Add 1 token per interval
-                        tokenInterval: 100     // Add tokens every 100ms
+                        tokenInterval: 100,    // Add tokens every 100ms
+                        requestDelay: 100,     // Wait for 100ms before trying to get token for request
+                        retryDelay: 100        // Wait for 100ms before retrying failed request, which returned HTTP code 429
                     });
-
-                    // Wait for 100ms before trying to get token for request
-                    angularRateLimterProvider.setRequestDelay(100);
-
-                    // Wait for 100ms before retrying failed request, which returned HTTP code 429
-                    angularRateLimterProvider.setRetryDelay(100);
 
                     // Enable limiters
                     angularRateLimterProvider.enableLimiters();
@@ -51,19 +47,17 @@
     ngModule.provider('AngularRateLimiter', function($httpProvider) {
         var isInterceptorConfigured = false;
         var rules = [];
-        var requestDelay = 50;
-        var retryInterval = 50;
         var defaultRuleConfiguration = {
             match: '',
             bucketSize: 20,
             tokensPerInterval: 20,
-            tokenInterval: 1000
+            tokenInterval: 1000,
+            requestDelay: 50,
+            retryInterval: 50
         };
 
         // Set provider methods
         this.addRateLimiter = addRateLimiter;
-        this.setRequestDelay = setRequestDelay;
-        this.setRetryDelay = setRetryDelay;
         this.enableLimiters = enableLimiters; 
         this.$get = angularRateLimiterFactory;
 
@@ -132,41 +126,6 @@
 
         /**
          * @ngdoc method
-         * @name angularRateLimiter.AngularRateLimiterProvider#setRequestDelay
-         * @methodOf angularRateLimiter.AngularRateLimiterProvider
-         * @description
-         * Set request delay. Sets delay value, which will be used to retry to 
-         * get token from bucket.
-         * 
-         * @param {Number} value Number of milliseconds to wait until retry to get token.
-         */
-        function setRequestDelay(value) {
-            if(isNaN(value)) {
-                throw new Error('Invalid value for request delay');
-            }
-
-            requestDelay = value;
-        }
-
-
-        /**
-         * @ngdoc method
-         * @name angularRateLimiter.AngularRateLimiterProvider#setRetryDelay
-         * @methodOf angularRateLimiter.AngularRateLimiterProvider
-         * @description
-         * Configure retry delay on 'too many request' failures.
-         * 
-         * @param enabled {undefined|Number} Number of milliseconds to delay 
-         *      request retry. Below zero like `-1` or NaN values will disable the
-         *      retry feature. 
-         */
-        function setRetryDelay(value) {
-            retryInterval = value;
-        }
-
-
-        /**
-         * @ngdoc method
          * @name angularRateLimiter.AngularRateLimiterProvider#enableRetryFailedRequest
          * @methodOf angularRateLimiter.AngularRateLimiterProvider
          * @description
@@ -199,9 +158,7 @@
          */
         function angularRateLimiterFactory() {
             return {
-                rules: rules,
-                requestDelay: requestDelay,
-                retryInterval: retryInterval
+                rules: rules
             };
         }
     });
@@ -364,7 +321,9 @@
         angular.forEach(AngularRateLimiter.rules, function(rule) {
             limiters.push({
                 matcher: rule.match,
-                bucket: new AngularRateLimiterTokenBucket(rule.bucketSize, rule.tokensPerInterval, rule.tokenInterval)
+                bucket: new AngularRateLimiterTokenBucket(rule.bucketSize, rule.tokensPerInterval, rule.tokenInterval),
+                retryInterval: rule.retryInterval,
+                requestDelay: rule.requestDelay
             });
         });
 
@@ -373,10 +332,6 @@
         // Add rate limit request handler, if we have configured rules
         if(limiters.length) {
             interceptorConfig.request = rateLimitRequests;
-        }
-
-        // Add too many requests handler if configured
-        if(!isNaN(AngularRateLimiter.retryInterval) && AngularRateLimiter.retryInterval >= 0) {
             interceptorConfig.responseError = retryTooManyRequest;
         }
 
@@ -391,34 +346,34 @@
          * @param {Object} request Angular $http request object
          */
         function rateLimitRequests(request) {
-            var bucket = getMatchingRateLimiterBucket(request);
+            var rule = getMatchingRule(request);
             // If no matching limter is found proceed with normal flow 
-            if(!bucket) {
+            if(!rule) {
                 return request;
             }
 
             // Try to get token, if removed succesfully proceed with request
-            if(bucket.tryRemoveTokens(1)) {
+            if(rule.bucket.tryRemoveTokens(1)) {
                 return request;
             }
 
             // Failed to get token, so delay request and return promise for $http
-            return delayRequest(request, bucket, AngularRateLimiter.requestDelay);
+            return delayRequest(request, rule);
         }
 
 
         /**
-         * Find matching rate limiter bucket.
+         * Find matching rate limiter rule.
          * 
          * @param {Object }request HTTP request object
-         * @return {undefined|TokenBucket} Return matching bucket or undefined
+         * @return {undefined|Object} Return matching rule
          */
-        function getMatchingRateLimiterBucket(request) {
+        function getMatchingRule(request) {
             for(var i in limiters) {
                 // If matching limiter found, then return the bucket
                 if(matchesToRequest(limiters[i].matcher, request)) {
-                    return limiters[i].bucket;
-                }    
+                    return limiters[i];
+                }
             }
         }
 
@@ -450,14 +405,15 @@
          * @param {Object} request Angular HTTP request object
          * @param {TokenBucket} bucket TokenBucket to be checked
          */
-        function delayRequest(request, bucket, requestDelay) {
+        function delayRequest(request, rule) {
             var deferred = $q.defer();
-            var retryInterval = $interval(tryToGetToken, requestDelay);
+            var retryInterval = $interval(tryToGetToken, rule.requestDelay);
 
             return deferred.promise;
 
+
             function tryToGetToken() {
-                if(bucket.tryRemoveTokens(1)) {
+                if(rule.bucket.tryRemoveTokens(1)) {
                     $interval.cancel(retryInterval);
                     retryInterval = undefined;
 
@@ -474,19 +430,20 @@
          * @return {Promise}
          */
         function retryTooManyRequest(response) {
-            if(response.status === 429) {
-                var deferred = $q.defer();
-                var requestConfiguration = response.config;
-                var $http = $injector.get('$http');
-
-                $timeout(function() {
-                    deferred.resolve($http(requestConfiguration));
-                }, AngularRateLimiter.retryInterval);
-                return deferred.promise;
-            }
-            else {
+            var rule = getMatchingRule(response.config);
+            // If no matching limter is found or status is not 429 proceed with normal flow 
+            if(!rule || response.status !== 429) {
                 return $q.reject(response);
             }
+
+            var deferred = $q.defer();
+            var requestConfiguration = response.config;
+            var $http = $injector.get('$http');
+
+            $timeout(function() {
+                deferred.resolve($http(requestConfiguration));
+            }, rule.retryInterval);
+            return deferred.promise;
         }
     });
 
