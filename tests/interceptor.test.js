@@ -21,25 +21,7 @@ describe('AngularRateLimiterInterceptor', function() {
         });
 
 
-        it('has retry handler when configured', function(done) {
-            // Mock configuration
-            module(function($provide) {
-                $provide.value('AngularRateLimiter', {
-                    rules: [],
-                    retryInterval: 10
-                });
-            });
-
-            inject(function(AngularRateLimiterInterceptor) {
-                var interceptor = AngularRateLimiterInterceptor;
-                expect(interceptor.request).toBe(undefined);
-                expect(interceptor.responseError).not.toBe(undefined);
-                done();
-            });
-        });
-
-
-        it('has request handler when configured', function(done) {
+        it('has event handlers when rule is configured', function(done) {
             // Mock configuration
             module(function($provide) {
                 $provide.value('AngularRateLimiter', {
@@ -47,7 +29,8 @@ describe('AngularRateLimiterInterceptor', function() {
                         match: '',
                         bucketSize: 10,
                         tokensPerInterval: 10,
-                        tokenInterval: 1000
+                        tokenInterval: 1000,
+                        retryInterval: 10
                     }]
                 });
             });
@@ -55,6 +38,7 @@ describe('AngularRateLimiterInterceptor', function() {
             inject(function(AngularRateLimiterInterceptor) {
                 var interceptor = AngularRateLimiterInterceptor;
                 expect(interceptor.request).not.toBe(undefined);
+                expect(interceptor.responseError).not.toBe(undefined);
                 done();
             });
         });
@@ -79,14 +63,18 @@ describe('AngularRateLimiterInterceptor', function() {
                         match: 'mydomain.com',
                         bucketSize: 2,
                         tokensPerInterval: 2,
-                        tokenInterval: 100
+                        tokenInterval: 100,
+                        requestDelay: 50,
+                        retryInterval: 0
                     },
                     {
                         // Match all protocols and hosts 'api' and 'rest' for domain test.com 
                         match: /^(.*):\/\/(api|rest).test.com/,
                         bucketSize: 2,
                         tokensPerInterval: 2,
-                        tokenInterval: 100                        
+                        tokenInterval: 100,
+                        requestDelay: 50,
+                        retryInterval: 0                        
                     },
                     {
                         match: function(request) {
@@ -94,11 +82,11 @@ describe('AngularRateLimiterInterceptor', function() {
                         },
                         bucketSize: 2,
                         tokensPerInterval: 2,
-                        tokenInterval: 100                        
+                        tokenInterval: 100,
+                        requestDelay: 50,
+                        retryInterval: 0                        
                     }
-                ],
-                requestDelay: 50,
-                retryInterval: 0
+                ]
             });
         }));
 

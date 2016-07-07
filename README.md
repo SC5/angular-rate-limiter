@@ -16,12 +16,6 @@ angular.module('myApp', ['angularRateLimiter'])
             tokenInterval: 100     // Add tokens every 100ms
         });
 
-        // Wait for 100ms before trying to get token for request
-        angularRateLimterProvider.setRequestDelay(100);
-
-        // Wait for 100ms before retrying failed request, which returned HTTP code 429
-        angularRateLimterProvider.setRetryDelay(100);
-
         // Enable limiters
         angularRateLimterProvider.enableLimiters();
     });
@@ -35,16 +29,10 @@ angular.module('myApp', ['angularRateLimiter'])
         AngularRateLimiterProvider.addRateLimiter({
             match: 'api.mydomain.com',  // Only use limiting on request which URL contain 'api.mydomain.com'
             bucketSize: 10,             // Maximum number of tokens bucket can hold
-            tokensPerInterval: 10,       // Add 10 token per interval
-            tokenInterval: 1000          // Add tokens every 1s
+            tokensPerInterval: 10,      // Add 10 token per interval
+            tokenInterval: 1000,        // Add tokens every 1s
+            retryDelay: -1              // Do not retry request when HTTP code 429 is received
         });
-
-        // Wait for 100ms before trying to get token for request
-        angularRateLimterProvider.setRequestDelay(100);
-
-        // Do not retry request when HTTP code 429 is received
-        angularRateLimterProvider.setRetryDelay(-1);
-
 
         // Enable limiters
         AngularRateLimiterProvider.enableLimiters();
