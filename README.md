@@ -17,7 +17,7 @@ angular.module('myApp', ['angularRateLimiter'])
         });
 
         // Enable limiters
-        angularRateLimterProvider.enableLimiters();
+        AngularRateLimiterProvider.enableLimiters();
     });
 ```
 

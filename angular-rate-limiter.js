@@ -315,7 +315,7 @@
      * AngularRateLimiterInterceptor service which will be added to $http service by AngularRateLimiter.
      * Do not use directly.
      */
-    ngModule.factory('AngularRateLimiterInterceptor', function(AngularRateLimiter, AngularRateLimiterTokenBucket, $q, $interval, $timeout, $injector) {
+    ngModule.factory('AngularRateLimiterInterceptor', function(AngularRateLimiter, AngularRateLimiterTokenBucket, $q, $interval, $timeout, $http) {
         // Create token buckets for each configured rule
         var limiters = [];
         angular.forEach(AngularRateLimiter.rules, function(rule) {
@@ -436,14 +436,10 @@
                 return $q.reject(response);
             }
 
-            var deferred = $q.defer();
             var requestConfiguration = response.config;
-            var $http = $injector.get('$http');
-
-            $timeout(function() {
-                deferred.resolve($http(requestConfiguration));
+            return $timeout(function() {
+                return $http(requestConfiguration);
             }, rule.retryInterval);
-            return deferred.promise;
         }
     });
 
